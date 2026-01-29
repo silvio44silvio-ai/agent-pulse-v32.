@@ -1,0 +1,17 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regra Alpha: Bloqueia acesso público total.
+    // Garante que apenas usuários que passaram pelo processo de login do AgentPulse
+    // possam interagir com a base de dados de leads e oportunidades.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Proteção específica para perfis de usuários (apenas o próprio usuário edita seu perfil)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

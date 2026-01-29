@@ -1,0 +1,37 @@
+
+name: AgentPulse AI CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install --no-fund --no-audit
+      env:
+        NPM_CONFIG_LEGACY_PEER_DEPS: false
+
+    - name: Verify React 19 Compliance
+      run: |
+        REACT_VERSION=$(npm list react | grep react@ | cut -d'@' -f2 | head -n 1)
+        if [[ ! $REACT_VERSION =~ ^19 ]]; then
+          echo "ERROR: Project must use React 19. Detected version: $REACT_VERSION"
+          exit 1
+        fi
+
+    - name: Type Check
+      run: npm run build

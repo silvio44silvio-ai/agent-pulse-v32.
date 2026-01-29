@@ -1,0 +1,9 @@
+{
+  "name": "AgentPulse AI",
+  "version": "2.5.0",
+  "description": "Plataforma Real Estate Alpha. Inteligência Preditiva e Captação de Leads.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
