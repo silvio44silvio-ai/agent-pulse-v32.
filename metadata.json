@@ -1,9 +1,13 @@
 {
   "name": "AgentPulse AI",
-  "version": "2.5.0",
-  "description": "Plataforma Real Estate Alpha. Inteligência Preditiva e Captação de Leads.",
+  "version": "1.0.0",
+  "description": "Plataforma de Alta Performance para Corretores de Elite. Inteligência OSINT e Lead Scoring.",
   "requestFramePermissions": [
     "geolocation",
-    "camera"
-  ]
+    "camera",
+    "microphone"
+  ],
+  "short_name": "AgentPulse",
+  "theme_color": "#4f46e5",
+  "background_color": "#020617"
 }

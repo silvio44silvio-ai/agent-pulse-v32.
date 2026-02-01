@@ -20,7 +20,12 @@ export interface Lead {
   brokerId?: string;
   propertyImage?: string;
   
-  // Banco de Dados 360º
+  contextSignals?: {
+    hasPets?: boolean;
+    profession?: string;
+    urgency?: string;
+  };
+
   personalData?: {
     fullName?: string;
     cpf?: string;
@@ -38,7 +43,9 @@ export interface SearchSchedule {
   location: string;
   type: 'buyer' | 'owner';
   days: string[];
-  time: string;
+  startTime: string;
+  startDate: string;
+  endDate?: string;
   active: boolean;
 }
 
@@ -53,14 +60,19 @@ export interface UserProfile {
   profilePicture?: string;
   trialStartDate?: string;
   proToken?: string;
+  activationDate?: string; 
   language?: AppLanguage;
   customApiKey?: string;
   googleSheetsUrl?: string;
   customInstructions?: string;
+  aiTone?: 'direto' | 'empatico' | 'persuasivo' | 'tecnico';
+  aiFormality?: 'casual' | 'neutro' | 'formal' | 'executivo';
   telegramBotToken?: string;
   telegramChatId?: string;
   enableTelegramAlerts?: boolean;
   schedules?: SearchSchedule[];
+  paymentLink?: string; 
+  isAdmin?: boolean;
 }
 
 export enum NavSection {
@@ -116,7 +128,7 @@ export interface JobOpportunity {
   location: string;
   remuneration: string;
   postedAt: string;
-  image?: string; // Campo para Base64 da imagem
+  image?: string; 
 }
 
 export interface TalentProfile {
@@ -127,5 +139,5 @@ export interface TalentProfile {
   contact: string;
   location: string;
   type: string;
-  image?: string; // Campo para Base64 da imagem
+  image?: string; 
 }

@@ -1,19 +1,26 @@
 
-import { GoogleGenAI, Chat, Modality } from "@google/genai";
+import { GoogleGenAI, Chat, Type } from "@google/genai";
 import { Lead, UserProfile, AppLanguage } from "../types";
 
-// Always initialize the GoogleGenAI client with a named parameter for the API key.
-const createAIInstance = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+const extractJson = (text: string) => {
+  try {
+    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      const cleaned = jsonMatch[0].replace(/```json|```/g, "").trim();
+      return JSON.parse(cleaned);
+    }
+    return null;
+  } catch (e) {
+    console.error("Erro no parser Rodney:", e);
+    return null;
+  }
 };
 
-const callWithRetry = async (fn: () => Promise<any>, retries = 1, delay = 800): Promise<any> => {
+const callWithRetry = async (fn: () => Promise<any>, retries = 2, delay = 1000): Promise<any> => {
   try {
     return await fn();
   } catch (error: any) {
-    const msg = error.message?.toLowerCase() || "";
-    const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('limit');
-    if (retries > 0 && isQuota) {
+    if (retries > 0) {
       await new Promise(r => setTimeout(r, delay));
       return callWithRetry(fn, retries - 1, delay * 2);
     }
@@ -21,145 +28,121 @@ const callWithRetry = async (fn: () => Promise<any>, retries = 1, delay = 800): 
   }
 };
 
-/**
- * Rodney v30: Generates synthesized speech bytes for tactical audio feedback.
- * Fallback: Returns undefined instantly if quota limit (429) is detected.
- */
-export const generateRodneySpeech = async (text: string): Promise<string | undefined> => {
-  const ai = createAIInstance();
-  const phoneticText = text
-    .replace(/AgentPulse/gi, "Éid-jent Púl-se")
-    .replace(/Rodney/gi, "Ród-ni")
-    .replace(/Alpha/gi, "Ál-fa")
-    .replace(/v30/gi, "Versão Trinta")
-    .replace(/OSINT/gi, "ô-sint");
-
-  try {
-    // Timeout-like abort for TTS if it takes too long or hits quota
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: phoneticText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Puck' },
-          },
-        },
-      },
-    });
-    return response.candidates?.[0]?.content?.parts[0]?.inlineData?.data;
-  } catch (e: any) {
-    const isQuota = e.message?.includes('429');
-    if (isQuota) {
-      console.warn("Rodney Alpha v30: QUOTA 429 - Protocolo de Fallback Visual Ativado.");
-    }
-    return undefined;
-  }
-};
-
-/**
- * Rodney v30: Generates a persuasive WhatsApp script for lead approach.
- */
-export const generateWhatsAppScript = async (lead: Lead, profile: UserProfile): Promise<string> => {
-  const ai = createAIInstance();
-  const prompt = `Atue como o corretor de elite ${profile.brokerName} da imobiliária ${profile.agencyName}. 
-  Gere um script de abordagem inicial para WhatsApp curto, humano e persuasivo para o lead ${lead.name}.
-  A necessidade do lead é: "${lead.need}". 
-  Tipo de lead: ${lead.type === 'buyer' ? 'Comprador' : 'Proprietário'}.
-  Instruções Adicionais do Corretor: ${profile.customInstructions || 'Nenhuma'}.
-  
-  Regras: 
-  1. Use uma saudação natural.
-  2. Demonstre que você conhece a necessidade dele.
-  3. Termine com uma pergunta aberta.
-  4. Retorne APENAS o texto da mensagem.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-    });
-    return response.text || "Olá, vi seu interesse em imóveis e gostaria de ajudar.";
-  } catch (err) {
-    return "Olá, vi seu interesse em imóveis e gostaria de ajudar.";
-  }
-};
-
-/**
- * Rodney v30: Deep OSINT scan for leads using Google Search and Maps grounding.
- */
-export const searchLeads = async (
+export const searchLeadsDeep = async (
   niche: string, 
   location: string, 
   profile: UserProfile, 
-  type: 'buyer' | 'owner' = 'buyer',
-  coords?: { latitude: number, longitude: number }
+  type: 'buyer' | 'owner' = 'buyer'
 ): Promise<{ leads: Lead[], sources: any[] }> => {
-  const ai = createAIInstance();
-  const model = 'gemini-2.5-flash';
-  const prompt = `Atue como Engenheiro Rodney Alpha v30. Varredura OSINT para leads ${type} de ${niche} em ${location}. Retorne estritamente JSON: { "leads": [{"name": "...", "need": "...", "location": "...", "foundAt": "...", "score": 90, "publicProfileUrl": "..."}] }`;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  const strategy = type === 'buyer' 
+    ? `EXTRAÇÃO DE COMPRADORES: Busque pessoas postando intenção de compra de '${niche}' em '${location}'.`
+    : `EXTRAÇÃO DE PROPRIETÁRIOS: Busque donos vendendo direto (FSBO) '${niche}' em '${location}'.`;
+
+  const prompt = `
+    VOCÊ É O ANALISTA OSINT RODNEY ALPHA v51.0. 
+    MISSÃO: Localizar leads e EXTRAIR CONTATOS REAIS (Celular, WhatsApp, Telegram, Email).
+    
+    ESTRATÉGIA: ${strategy}
+    
+    REQUISITO CRÍTICO: Varra comentários, bios, rodapés de páginas e anúncios para achar o NÚMERO DE CONTATO.
+    
+    RETORNE APENAS JSON:
+    {
+      "leads": [
+        {
+          "name": "Nome do Lead",
+          "need": "O que ele quer exatamente",
+          "location": "Bairro/Cidade",
+          "contact": "Número de WhatsApp/Celular com DDD (obrigatório se achar)",
+          "email": "Email se disponível",
+          "telegram": "Username do Telegram se disponível",
+          "foundAt": "Link da postagem original",
+          "score": 95,
+          "contextSignals": {
+            "hasPets": boolean,
+            "profession": "Profissão",
+            "urgency": "Alta/Média"
+          }
+        }
+      ]
+    }
+  `;
 
   try {
     const response = await callWithRetry(async () => {
       return await ai.models.generateContent({
-        model,
+        model: 'gemini-3-flash-preview', 
         contents: prompt,
         config: { 
-          tools: [{ googleSearch: {} }, { googleMaps: {} }],
-          toolConfig: coords ? { retrievalConfig: { latLng: { latitude: coords.latitude, longitude: coords.longitude } } } : undefined,
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json"
         }
       });
     });
 
-    let text = response.text || '{"leads":[]}';
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const data = JSON.parse(text);
-    const leads = (data.leads || []).map((l: any) => ({ 
+    const data = extractJson(response.text);
+    if (!data || !data.leads) throw new Error("Falha na extração de dados.");
+
+    const leads = data.leads.map((l: any) => ({ 
       ...l, 
-      id: Math.random().toString(36).substring(2, 9), 
+      id: Math.random().toString(36).substring(2, 9).toUpperCase(), 
       type, 
       status: 'Novo',
-      lastInteraction: new Date().toISOString()
+      lastInteraction: new Date().toISOString(),
+      triggers: [l.contextSignals?.profession, l.contextSignals?.hasPets ? 'Pet Friendly' : null].filter(Boolean)
     }));
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return { leads, sources };
+    
+    return { leads, sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [] };
   } catch (err) {
-    return { leads: [], sources: [] };
+    console.error("Rodney OSINT Fatal Error:", err);
+    throw err;
   }
 };
 
-/**
- * Rodney v30: Real-time market intelligence report with Google Search grounding.
- */
-export const generateMarketReport = async (address: string, details: string, lang: AppLanguage): Promise<{ text: string, sources: any[] }> => {
-  const ai = createAIInstance();
-  const prompt = `Gere um relatório de análise de mercado imobiliário para: ${address}. Contexto: ${details}. Idioma: ${lang}.`;
+export const generateTripleScript = async (lead: any, profile: UserProfile): Promise<string[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const context = lead.need + (lead.contextSignals ? ` Profissão: ${lead.contextSignals.profession}. Pets: ${lead.contextSignals.hasPets ? 'Sim' : 'Não'}.` : '');
+  
+  const prompt = `Gere 3 variações de script para WhatsApp para o lead ${lead.name}. Contexto: ${context}. Corretor: ${profile.brokerName}. Retorne apenas um array JSON de strings.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(response.text || '[]');
+  } catch (err) {
+    return [`Olá ${lead.name}, sou o ${profile.brokerName}. Vi seu interesse em ${lead.location}.`];
+  }
+};
 
+export const generateWhatsAppScript = async (lead: any, profile: UserProfile): Promise<string> => {
+  const scripts = await generateTripleScript(lead, profile);
+  return scripts[0];
+};
+
+export const generateMarketReport = async (address: string, details: string, lang: AppLanguage): Promise<{ text: string, sources: any[] }> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const prompt = `Análise de mercado para: ${address}. Detalhes: ${details}.`;
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { tools: [{ googleSearch: {} }] }
     });
-    return {
-      text: response.text || "Relatório indisponível.",
-      sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
+    return { text: response.text || "", sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [] };
   } catch (err) {
-    return { text: "Erro na inteligência de mercado.", sources: [] };
+    return { text: "Erro na análise.", sources: [] };
   }
 };
 
-/**
- * Rodney v30: Initializes an AI chat session.
- */
 export const initChatSession = (profile: UserProfile): Chat => {
-  const ai = createAIInstance();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
-    config: {
-      systemInstruction: `Você é RODNEY ALPHA v30. Fala curta, técnica, autoritária e focada no mercado imobiliário.`
-    }
+    config: { systemInstruction: `Rodney Alpha v51.0. Auxilie ${profile.brokerName}.` },
   });
 };

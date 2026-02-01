@@ -1,50 +1,124 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { NavSection, UserProfile, Lead } from '../types';
-import { MOCK_LEADS, getNavItems } from '../constants';
-import { Sidebar } from '../components/Sidebar';
-import { Dashboard } from '../components/Dashboard';
-import { SocialRadar } from '../components/SocialRadar';
-import { LeadList } from '../components/LeadList';
-import { IAAssistant } from '../components/IAAssistant';
-import { Settings } from '../components/Settings';
-import { HelpCenter } from '../components/HelpCenter';
-import { Login } from '../components/Login';
-import { Menu, X, Bell, Lock, Zap, ArrowRight, ShieldCheck, Activity, Sparkles, Crown, Clock } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { NavSection, UserProfile, Lead } from './types';
+import { MOCK_LEADS } from './constants';
+import { Sidebar } from './components/Sidebar';
+import { Dashboard } from './components/Dashboard';
+import { SeniorCommand } from './components/SeniorCommand';
+import { SocialRadar } from './components/SocialRadar';
+import { LeadList } from './components/LeadList';
+import { IAAssistant } from './components/IAAssistant';
+import { Settings } from './components/Settings';
+import { HelpCenter } from './components/HelpCenter';
+import { MarketAnalysis } from './components/MarketAnalysis';
+import { AppraisalCalculator } from './components/AppraisalCalculator';
+import { OpportunityBoard } from './components/OpportunityBoard';
+import { Messenger } from './components/Messenger';
+import { AdminPanel } from './components/AdminPanel';
+import { LaunchCenter } from './components/LaunchCenter';
+import { EmailMarketing } from './components/EmailMarketing';
+import { TeamPerformance } from './components/TeamPerformance';
+import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
+import { Onboarding } from './components/Onboarding';
+import { Logo } from './components/Logo';
+import { ShieldCheck, Activity, Lock, ArrowRight, Clock, AlertTriangle, Crown } from 'lucide-react';
 
 const TRIAL_DAYS = 7;
 
 const App = () => {
+  const [isReady, setIsReady] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [activeSection, setActiveSection] = useState<NavSection>(NavSection.Dashboard);
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Rodney: Theme management implementation for React 19 compliance
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [profile, setProfile] = useState<UserProfile>({
     brokerName: 'Corretor Alpha',
-    agencyName: 'Imobiliária Prime',
-    welcomeMessage: 'Olá! Sou o assistente inteligente da Prime. Vi que você busca um imóvel e estou aqui para agilizar seu atendimento. Qual seu orçamento médio?',
+    agencyName: 'AgentPulse Command',
+    welcomeMessage: 'Protocolo de Operação Ativo.',
     phone: '',
-    trialStartDate: undefined,
-    proToken: ''
+    proToken: '',
+    language: 'pt',
+    trialStartDate: undefined
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem('agentPulseProfile');
-    if (saved) setProfile(JSON.parse(saved));
+    const initApp = () => {
+      const savedProfile = localStorage.getItem('agentPulseProfile');
+      const savedLeads = localStorage.getItem('agentPulseLeads');
+      const savedTheme = localStorage.getItem('agentPulseTheme') as 'dark' | 'light';
+      
+      // Rodney Alpha: Detecção de Link de Convite
+      const params = new URLSearchParams(window.location.search);
+      const isTrialLink = params.get('ref') === '7days';
 
-    // Rodney: Restore theme from local storage
-    const savedTheme = localStorage.getItem('agentPulseTheme') as 'dark' | 'light';
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.body.className = savedTheme;
-    }
+      if (savedTheme) {
+        setTheme(savedTheme);
+        document.body.className = savedTheme;
+      }
+
+      if (savedProfile) {
+        try {
+          const parsedProfile = JSON.parse(savedProfile);
+          setProfile(parsedProfile);
+          setIsAuthenticated(true);
+          setHasStarted(true);
+        } catch (e) {
+          console.error("Rodney: Erro ao restaurar perfil.");
+        }
+      } else if (isTrialLink) {
+        // Inicializa trial se vier do link
+        const initialTrialDate = new Date().toISOString();
+        setProfile(prev => ({ ...prev, trialStartDate: initialTrialDate }));
+        console.log("Rodney Protocol: Link de Convite detectado. Relógio iniciado.");
+      }
+
+      if (savedLeads) {
+        try {
+          setLeads(JSON.parse(savedLeads));
+        } catch (e) {
+          setLeads(MOCK_LEADS);
+        }
+      } else {
+        setLeads(MOCK_LEADS);
+      }
+      
+      setIsReady(true);
+    };
+
+    initApp();
   }, []);
 
-  // Rodney: Theme toggle logic
+  const subscriptionStatus = useMemo(() => {
+    const token = profile.proToken || '';
+    const activationDate = profile.activationDate ? new Date(profile.activationDate).getTime() : Date.now();
+    const now = Date.now();
+
+    // Lógica Pro
+    if (token.startsWith('AGENT-PRO-L-')) return { type: 'PRO', planName: 'Vitalício', expired: false, daysLeft: 9999 };
+    if (token.startsWith('AGENT-PRO-A-')) {
+      const daysPassed = Math.floor((now - activationDate) / (1000 * 60 * 60 * 24));
+      const remaining = 365 - daysPassed;
+      return { type: 'PRO', planName: 'Anual', expired: remaining <= 0, daysLeft: remaining };
+    }
+    if (token.startsWith('AGENT-PRO-M-')) {
+      const daysPassed = Math.floor((now - activationDate) / (1000 * 60 * 60 * 24));
+      const remaining = 30 - daysPassed;
+      return { type: 'PRO', planName: 'Mensal', expired: remaining <= 0, daysLeft: remaining };
+    }
+
+    // Lógica Trial Rodney
+    if (!profile.trialStartDate) return { type: 'TRIAL', planName: 'Experimental', expired: false, daysLeft: TRIAL_DAYS };
+    const start = new Date(profile.trialStartDate).getTime();
+    const daysPassed = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    const remaining = Math.max(0, TRIAL_DAYS - daysPassed);
+    return { type: 'TRIAL', planName: 'Experimental', expired: remaining <= 0, daysLeft: remaining };
+  }, [profile.trialStartDate, profile.proToken, profile.activationDate]);
+
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
@@ -52,185 +126,153 @@ const App = () => {
     document.body.className = newTheme;
   };
 
+  const handleUpdateStatus = useCallback((id: string, status: Lead['status']) => {
+    setLeads(prev => {
+      const updated = prev.map(l => l.id === id ? { ...l, status, lastInteraction: new Date().toISOString() } : l);
+      localStorage.setItem('agentPulseLeads', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const handleLogin = (phone: string) => {
     const now = new Date().toISOString();
-    setProfile(prev => {
-      const newProfile = { 
-        ...prev, 
-        phone, 
-        trialStartDate: prev.trialStartDate || now 
-      };
-      localStorage.setItem('agentPulseProfile', JSON.stringify(newProfile));
-      return newProfile;
-    });
+    setProfile(prev => ({ 
+      ...prev, 
+      phone, 
+      trialStartDate: prev.trialStartDate || now 
+    }));
+    setShowOnboarding(true);
+  };
+
+  const handleOnboardingComplete = (newProfile: UserProfile) => {
+    const finalProfile = { ...newProfile };
+    setProfile(finalProfile);
+    localStorage.setItem('agentPulseProfile', JSON.stringify(finalProfile));
+    setShowOnboarding(false);
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-  };
-
-  const saveProfile = (newProfile: UserProfile) => {
-    setProfile(newProfile);
-    localStorage.setItem('agentPulseProfile', JSON.stringify(newProfile));
-  };
-
-  const addLeads = (newLeads: Lead[]) => {
-    setLeads(prev => {
-      const existingIds = new Set(prev.map(l => l.id));
-      const uniqueNew = newLeads.filter(l => !existingIds.has(l.id));
-      return [...uniqueNew, ...prev];
-    });
-  };
-
-  const handleUpdateStatus = (id: string, status: Lead['status']) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
-  };
-
-  const subscriptionStatus = useMemo(() => {
-    const isPro = profile.proToken && profile.proToken.startsWith('AGENT-PRO-');
-    if (isPro) return { type: 'PRO', expired: false, daysLeft: 0 };
-    if (!profile.trialStartDate) return { type: 'TRIAL', expired: false, daysLeft: TRIAL_DAYS };
-    const start = new Date(profile.trialStartDate).getTime();
-    const now = Date.now();
-    const diff = now - start;
-    const daysPassed = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const remaining = Math.max(0, TRIAL_DAYS - daysPassed);
-    return { type: 'TRIAL', expired: remaining <= 0, daysLeft: remaining };
-  }, [profile.trialStartDate, profile.proToken]);
-
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
-
   const renderContent = () => {
+    // Rodney Alpha: Bloqueio Tático
     if (subscriptionStatus.expired && activeSection !== NavSection.Settings && activeSection !== NavSection.Dashboard) {
       setActiveSection(NavSection.Dashboard);
     }
+
     switch (activeSection) {
-      case NavSection.Dashboard: return <Dashboard leads={leads} />;
-      case NavSection.SocialRadar: return <SocialRadar onLeadsFound={addLeads} profile={profile} onUpdateStatus={handleUpdateStatus} />;
+      case NavSection.Dashboard: return <Dashboard leads={leads} subscription={subscriptionStatus} onNavigateToSquads={() => setActiveSection(NavSection.Messenger)} onNavigateToBilling={() => setActiveSection(NavSection.Settings)} />;
+      case NavSection.SeniorCommand: return <SeniorCommand leads={leads} profile={profile} />;
+      case NavSection.SocialRadar: return <SocialRadar onLeadsFound={(newLeads) => setLeads(prev => [...newLeads, ...prev])} profile={profile} onUpdateStatus={handleUpdateStatus} />;
       case NavSection.Leads: return <LeadList leads={leads} profile={profile} onUpdateStatus={handleUpdateStatus} />;
       case NavSection.AIChat: return <IAAssistant profile={profile} />;
-      case NavSection.Settings: return <Settings profile={profile} onSave={saveProfile} />;
+      case NavSection.Settings: return <Settings profile={profile} onSave={(p) => { setProfile(p); localStorage.setItem('agentPulseProfile', JSON.stringify(p)); }} />;
       case NavSection.Help: return <HelpCenter />;
-      default: return <Dashboard leads={leads} />;
+      case NavSection.MarketAnalysis: return <MarketAnalysis currentLang={profile.language || 'pt'} />;
+      case NavSection.AppraisalCalc: return <AppraisalCalculator />;
+      case NavSection.JobBoard: return <OpportunityBoard />;
+      case NavSection.Messenger: return <Messenger />;
+      case NavSection.Admin: return <AdminPanel />;
+      case NavSection.Launches: return <LaunchCenter />;
+      case NavSection.EmailMarketing: return <EmailMarketing />;
+      case NavSection.Performance: return <TeamPerformance />;
+      default: return <Dashboard leads={leads} subscription={subscriptionStatus} onNavigateToSquads={() => setActiveSection(NavSection.Messenger)} onNavigateToBilling={() => setActiveSection(NavSection.Settings)} />;
     }
   };
 
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!hasStarted) return <LandingPage onStart={() => setHasStarted(true)} />;
+  
+  if (showOnboarding) return <Onboarding initialPhone={profile.phone} onComplete={handleOnboardingComplete} />;
+
+  if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+
   return (
-    <div className={`min-h-screen flex flex-col lg:flex-row overflow-x-hidden ${theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-900'}`}>
+    <div className={`min-h-screen flex flex-col lg:flex-row overflow-hidden ${theme === 'dark' ? 'bg-[#020617] text-slate-200' : 'bg-[#f8fafc] text-slate-900'}`}>
       <Sidebar 
         activeSection={activeSection} 
         subscription={subscriptionStatus}
-        onNavigate={(s) => { setActiveSection(s); setIsMobileMenuOpen(false); }} 
-        onLogout={handleLogout}
-        isAdminUnlocked={false}
-        onLogoClick={() => {}}
-        profile={profile}
-        onLanguageChange={(lang) => saveProfile({...profile, language: lang})}
+        isAdminUnlocked={true}
+        isOpen={isMobileMenuOpen}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onLogoClick={() => setActiveSection(NavSection.Dashboard)}
+        onNavigate={(s) => { setActiveSection(s); setIsMobileMenuOpen(false); }} 
+        onLogout={() => { 
+          localStorage.clear(); 
+          window.location.reload(); 
+        }} 
+        profile={profile}
+        onLanguageChange={(lang) => setProfile(p => ({...p, language: lang}))}
       />
 
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-20 glass z-[100] px-6 flex items-center justify-between border-b border-white/5">
-        <div className="brand-text text-lg flex items-center gap-1.5">
-          <Activity size={18} className="text-indigo-500" />
-          <span className="text-white">Agent</span>
-          <span className="pulse-gradient">Pulse</span>
-        </div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-          className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-slate-400 active:scale-90 transition-all"
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
-
-      <main className="flex-1 lg:ml-64 p-6 lg:p-12 pt-28 lg:pt-14 min-h-screen relative">
-        <header className="mb-12 lg:mb-16 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-          <div className="space-y-4">
-             <div className="flex items-center gap-2">
-                <span className="bg-indigo-600/10 text-indigo-400 text-[9px] px-2.5 py-1 rounded-full font-black tracking-widest border border-indigo-500/20 uppercase">
-                  {activeSection.replace('-', ' ')}
-                </span>
-             </div>
-            <h1 className="text-3xl lg:text-5xl font-extrabold tracking-tighter text-white">
-              <span className="opacity-30 font-light mr-3">Portal</span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-slate-500">{profile.agencyName}</span>
-            </h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)] ${subscriptionStatus.type === 'PRO' ? 'bg-indigo-500' : 'bg-emerald-500'}`}></div>
-                <p className="text-slate-500 text-xs font-bold tracking-wide">
-                  IDENTIDADE: <span className="text-slate-300 ml-1 uppercase">{profile.brokerName}</span>
-                </p>
+      <main className="flex-1 lg:ml-64 p-4 lg:p-6 pt-20 lg:pt-6 min-h-screen overflow-y-auto no-scrollbar relative">
+        <header className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/5 pb-6">
+          <div className="animate-in fade-in slide-in-from-left-6 duration-700 overflow-visible">
+            <Logo size={32} theme={theme} showText={true} />
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-white/10">
+                <p className="text-slate-500 text-[8px] font-black uppercase tracking-widest">Op: <span className="text-indigo-400">{profile.brokerName}</span></p>
               </div>
-              {subscriptionStatus.type === 'PRO' ? (
-                 <span className="bg-indigo-500/10 text-indigo-400 text-[10px] px-3 py-1 rounded-lg font-black border border-indigo-500/20">AGENTPULSE PRO</span>
-              ) : (
-                 <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-3 py-1 rounded-lg font-black border border-emerald-500/20">EXPERIMENTAL</span>
-              )}
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${subscriptionStatus.expired ? 'bg-rose-500/10 border-rose-500/20' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
+                {subscriptionStatus.expired ? <AlertTriangle size={10} className="text-rose-500" /> : <ShieldCheck size={10} className="text-indigo-400" />}
+                <span className={`text-[8px] font-black uppercase tracking-tighter ${subscriptionStatus.expired ? 'text-rose-400' : 'text-indigo-400'}`}>
+                   {subscriptionStatus.expired ? 'EXPIRADO' : `NODE: ${profile.agencyName}`}
+                </span>
+              </div>
             </div>
           </div>
           
-          <div className="hidden lg:flex items-center gap-5 glass px-7 py-5 rounded-[32px] border border-white/5 shadow-2xl">
+          <div className="hidden lg:flex items-center gap-5 glass px-6 py-3 rounded-2xl border border-white/5">
             <div className="text-right">
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1.5">Licença Protocol</div>
-              <div className={`text-sm font-extrabold flex items-center justify-end gap-2 ${subscriptionStatus.type === 'PRO' ? 'text-indigo-400' : 'text-emerald-400'}`}>
-                {subscriptionStatus.type === 'PRO' ? (
-                  <>
-                    <Crown size={14} />
-                    Status Vitalício
-                  </>
-                ) : (
-                  <>
-                    <Clock size={14} />
-                    {subscriptionStatus.daysLeft} Dias de Teste
-                  </>
-                )}
+              <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Licença Rodney</div>
+              <div className={`text-xs font-black flex items-center justify-end gap-1.5 ${subscriptionStatus.expired ? 'text-rose-500' : 'text-indigo-400'}`}>
+                {subscriptionStatus.expired ? 'EXPIRADA' : <><Clock size={12} /> {subscriptionStatus.daysLeft} Dias</>}
               </div>
             </div>
-            <div className="h-12 w-px bg-white/10"></div>
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center font-black text-white shadow-xl shadow-indigo-600/20 text-lg">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white text-sm">
               {profile.brokerName.charAt(0)}
             </div>
           </div>
+
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+            className="lg:hidden fixed top-4 right-4 z-[200] p-3 glass rounded-xl border border-white/15 text-indigo-400 shadow-2xl"
+          >
+            <Activity size={20} />
+          </button>
         </header>
 
-        <div className="max-w-[1500px] mx-auto">
+        <div className="max-w-[1400px] mx-auto pb-12">
           {renderContent()}
         </div>
 
+        {/* Rodney Lockdown Overlay */}
         {subscriptionStatus.expired && (
-          <div className="fixed inset-0 lg:left-64 bg-slate-950/90 backdrop-blur-xl z-[80] flex items-center justify-center p-6 animate-in fade-in duration-700">
-            <div className="max-w-md w-full glass p-12 rounded-[56px] border border-indigo-500/30 text-center space-y-10 shadow-2xl relative overflow-hidden">
+          <div className="fixed inset-0 lg:left-64 bg-slate-950/90 backdrop-blur-xl z-[450] flex items-center justify-center p-6 animate-in fade-in duration-700">
+            <div className="max-w-md w-full glass p-10 lg:p-14 rounded-[56px] border border-indigo-500/30 text-center space-y-10 shadow-2xl relative overflow-hidden">
               <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-600/10 blur-[60px] rounded-full"></div>
-              
               <div className="relative">
                 <div className="inline-flex h-24 w-24 rounded-[36px] bg-indigo-600/20 text-indigo-400 items-center justify-center border border-indigo-500/20 mb-8">
                   <Lock size={44} />
                 </div>
-                <h2 className="text-4xl font-black tracking-tighter mb-4">Acesso Expirado</h2>
+                <h2 className="text-3xl font-black tracking-tighter mb-4 text-white uppercase italic">Acesso Expirado</h2>
                 <p className="text-slate-400 text-sm font-medium leading-relaxed px-4">
-                  Seu período experimental de <span className="text-white font-bold">7 dias</span> encerrou. Libere o poder total da IA Gemini ativando sua chave Pro.
+                  Comandante, seu ciclo experimental de 7 dias chegou ao fim. Para continuar dominando o VGV com o Rodney, ative seu plano profissional.
                 </p>
               </div>
-
-              <div className="space-y-4">
-                <button 
-                  onClick={() => setActiveSection(NavSection.Settings)}
-                  className="w-full btn-premium text-white font-black py-5 rounded-[28px] flex items-center justify-center gap-3 transition-all text-lg"
-                >
-                  Inserir Token de Ativação
-                  <ArrowRight size={20} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-slate-600 pt-6 border-t border-white/5">
-                <ShieldCheck size={16} className="text-emerald-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Protocolo de Segurança AgentPulse</span>
-              </div>
+              <button 
+                onClick={() => setActiveSection(NavSection.Settings)}
+                className="w-full btn-premium text-white font-black py-5 rounded-[28px] flex items-center justify-center gap-3 transition-all text-sm uppercase tracking-widest italic"
+              >
+                Liberar Acesso Pró <ArrowRight size={20} />
+              </button>
+              <p className="text-[8px] text-slate-600 font-bold uppercase tracking-[0.2em]">Seus leads e dados permanecem salvos localmente.</p>
             </div>
           </div>
         )}
